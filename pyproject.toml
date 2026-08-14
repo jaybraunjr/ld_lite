@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ld_lite"
+version = "0.1.0"
+description = "Build a lipid droplet from a bilayer and run GROMACS minimization + equilibration"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "jaybraunjr" }]
+keywords = ["molecular-dynamics", "lipid-droplet", "gromacs", "charmm36", "mdanalysis"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "MDAnalysis>=2.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+ld_lite = "ld_lite.__main__:main"
+
+[tool.setuptools]
+packages = ["ld_lite"]
+
+[tool.setuptools.package-data]
+ld_lite = ["data/*.gro", "mdp/*.mdp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

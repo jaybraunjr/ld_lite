@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# GROMACS run output
+runs/
+*.tpr
+*.trr
+*.xtc
+*.edr
+*.cpt
+*.log
+\#*\#
