@@ -73,22 +73,22 @@ def run(outdir, production=False, ntomp=None, nsteps=None,
     gmx = find_gmx()
 
     if nsteps is not None:
-        print(f"[ld_lite] smoke test: every stage capped at {nsteps} steps")
+        print(f"[ld_lite] smoke test: every stage capped at {nsteps} steps", flush=True)
 
-    print("[ld_lite] step6.0  energy minimization")
+    print("[ld_lite] step6.0  energy minimization", flush=True)
     prev = _stage(gmx, outdir, MINIMIZATION, structure, "em",
                   ntomp=ntomp, nsteps=nsteps)
 
     # step6.1 generates its own velocities, so it starts without a checkpoint
     cpt = None
     for i, mdp in enumerate(EQUILIBRATION, start=1):
-        print(f"[ld_lite] step6.{i}  equilibration")
+        print(f"[ld_lite] step6.{i}  equilibration", flush=True)
         prev = _stage(gmx, outdir, mdp, prev, f"eq{i}", cpt=cpt,
                       ntomp=ntomp, nsteps=nsteps)
         cpt = f"eq{i}.cpt"
 
     if production:
-        print("[ld_lite] step7   NPT production")
+        print("[ld_lite] step7   NPT production", flush=True)
         prev = _stage(gmx, outdir, PRODUCTION, prev, "npt", cpt=cpt,
                       ntomp=ntomp, nsteps=nsteps)
 

@@ -124,6 +124,12 @@ contacts closer than 1.2 Å in the final structure:
 The build prints the closest contact it achieved. Anything above ~0.5 Å
 minimizes without trouble under the restrained steepest descent in `step6.0`.
 
+**Check that printed number rather than trusting the default**, because the
+right fraction depends on how much floor area the box gives each molecule. The
+table above comes from a roomy 118 × 118 Å box; packing the same 100 TRIO into
+a 90 × 90 Å one, the default 0.25 gives only 0.44 Å and 0.15 is needed to reach
+1.55 Å. A tighter box wants a lower fraction.
+
 ## Limitations
 
 - The output is a **starting structure**. Always minimize before running MD.
@@ -132,6 +138,13 @@ minimizes without trouble under the restrained steepest descent in `step6.0`.
   the full [`ld_maker`](https://github.com/jaybraunjr/ld_maker) package.
 - The bilayer must be solvated and ionized already — nothing here adds water.
 - Head groups are found by atom name `P`, which covers PC/PE/PI/PS/PG.
+- Molecules **split across the periodic boundary are reassembled** on load, and
+  the count is printed. Trajectory frames written without `-pbc mol` routinely
+  contain these; left alone they give a lipid a meaningless centre of mass (so
+  it lands in the wrong leaflet) and make `grompp` abort with *"largest distance
+  between excluded atoms … larger than the cut-off"* — an error `-maxwarn` will
+  not absorb. Reassembly assumes a rectangular box and molecules shorter than
+  half of it, which holds for CHARMM-GUI membranes.
 - A residue with no `.itp` guess, or that lands in no index group, is reported
   when the files are written rather than as a cryptic `grompp` failure later.
   Extend `ITP_ORDER` / `MEMBRANE` in `ld_lite/gmx.py` for new lipids.
