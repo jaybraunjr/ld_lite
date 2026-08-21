@@ -40,6 +40,39 @@ def _midplane_z(universe, head_name="P"):
     return float(heads.positions[:, 2].mean())
 
 
+def make_whole(universe):
+    """Reassemble residues that are split across the periodic boundary.
+
+    A ``.gro`` carries no bonds, so :meth:`AtomGroup.unwrap` is unavailable and
+    ``wrap(compound="residues")`` is no help -- it translates each residue by
+    its centre of mass, which for an already-split residue is a meaningless
+    point midway across the box.  Instead every atom is moved to its minimum
+    image relative to the first atom of its own residue, which reassembles any
+    molecule smaller than half the box without needing connectivity.
+
+    This matters twice over: a split residue has a bogus centre of mass, which
+    would put it in the wrong leaflet, and it makes ``grompp`` abort with
+    "largest distance between excluded atoms ... larger than the cut-off".
+
+    Returns the number of residues that had to be repaired.
+    """
+    box = universe.dimensions[:3].astype(float)
+    if np.any(box <= 0):
+        raise ValueError("the bilayer has no box -- cannot resolve periodicity")
+
+    pos = universe.atoms.positions.astype(float)
+    resindices = universe.atoms.resindices
+    # first atom of each residue, as a per-atom reference point
+    _, first = np.unique(resindices, return_index=True)
+    ref = pos[first][resindices]
+
+    shift = box * np.round((pos - ref) / box)
+    moved = np.abs(shift).sum(axis=1) > 0
+    if moved.any():
+        universe.atoms.positions = pos - shift
+    return int(np.unique(resindices[moved]).size)
+
+
 def build_ld(bilayer, n_trio, core_source=None, core_thickness=None,
              packing_fraction=0.25, head_name="P", seed=0, relax=True,
              d_min=1.6):
@@ -76,7 +109,11 @@ def build_ld(bilayer, n_trio, core_source=None, core_thickness=None,
         raise ValueError("n_trio must be at least 1")
 
     u = bilayer if isinstance(bilayer, mda.Universe) else mda.Universe(bilayer)
-    # make molecules whole and inside the box so the leaflet split is clean
+    # reassemble anything split across the boundary, *then* put whole residues
+    # back in the box -- in that order, so the leaflet split sees real centres
+    repaired = make_whole(u)
+    if repaired:
+        print(f"[ld_lite] repaired {repaired} residues split across the periodic boundary")
     u.atoms.wrap(compound="residues")
     box = u.dimensions.copy()
     centre = _midplane_z(u, head_name)

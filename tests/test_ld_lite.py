@@ -6,7 +6,8 @@ import numpy as np
 import MDAnalysis as mda
 import pytest
 
-from ld_lite import build_ld, extract_template, molecule_counts, write_top, write_index
+from ld_lite import (build_ld, extract_template, make_whole, molecule_counts,
+                     write_top, write_index)
 from ld_lite import equil
 from ld_lite.build import DEFAULT_CORE_SOURCE
 
@@ -103,6 +104,45 @@ def test_core_sits_between_the_leaflets(ld):
     # the core straddles the midplane, the heads stay outside it
     assert heads_z.min() < core_z.mean() < heads_z.max()
     assert core_z.mean() == pytest.approx(ld.dimensions[2] / 2.0, abs=8.0)
+
+
+def _split_one_residue(u, resid_index=0):
+    """Push half of one residue across the x boundary, as trjconv output does."""
+    res = u.residues[resid_index]
+    pos = u.atoms.positions.copy()
+    idx = res.atoms.ix[len(res.atoms) // 2:]
+    pos[idx, 0] += BOX[0]
+    u.atoms.positions = pos
+    return idx
+
+
+def test_make_whole_reassembles_a_split_residue():
+    u = synthetic_bilayer()
+    idx = _split_one_residue(u)
+    span_before = u.residues[0].atoms.positions[:, 0].ptp()
+    assert span_before > BOX[0] / 2          # genuinely split
+
+    repaired = make_whole(u)
+    assert repaired == 1
+    assert u.residues[0].atoms.positions[:, 0].ptp() < BOX[0] / 2
+    # every other residue is left alone
+    assert make_whole(u) == 0
+
+
+def test_split_residue_does_not_survive_into_the_build():
+    """grompp aborts if any molecule spans more than the cut-off, so the
+    builder must reassemble the input rather than propagate the break."""
+    u = synthetic_bilayer()
+    _split_one_residue(u)
+    ld = build_ld(u, n_trio=4, core_thickness=30.0, seed=1)
+
+    # No bilayer residue may span more than half the box along any axis; a
+    # longer one is still split. (Only the input is checked -- a single TRIO is
+    # ~33 A end to end, which legitimately exceeds half of this toy 60 A box.)
+    half = ld.dimensions[:3] / 2.0
+    bilayer_res = [r for r in ld.residues if r.resname != "TRIO"]
+    worst = max(float((r.atoms.positions.ptp(axis=0) / half).max()) for r in bilayer_res)
+    assert worst < 1.0
 
 
 def test_molecule_counts_collapse_runs():

@@ -18,13 +18,14 @@ or from the command line::
 
 __version__ = "0.1.0"
 
-from .build import build_ld
+from .build import build_ld, make_whole
 from .gmx import molecule_counts, write_top, write_index
 from .templates import Template, extract_template
 from .relax import relax_clashes
 
 __all__ = [
     "build_ld",
+    "make_whole",
     "molecule_counts",
     "write_top",
     "write_index",
