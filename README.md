@@ -88,6 +88,33 @@ Do **not** try to reach a CHYO leaflet by substituting lipids in place — a bul
 substitution over-packs the leaflet and will not minimize. That is what
 CHARMM-GUI Membrane Builder is for.
 
+## Lipids it hasn't heard of
+
+Composition comes entirely from your bilayer — `ld_lite` never builds or edits a
+membrane, so any CHARMM-GUI mixture carries through. What it does need to know
+is which thermostat group each residue belongs to. These are recognised out of
+the box:
+
+| group | residues |
+|---|---|
+| `MEMB` | POPC, DOPE, SAPI, POPE, POPG, POPS, PSM, CHL1, CHYO |
+| `SOLV` | TIP3, SOL, SOD, CLA, POT, K, NA |
+| `SOLU` | TRIO |
+
+Anything else is declared on the command line — no source edit:
+
+```bash
+python -m ld_lite build --bilayer bil.gro --n-trio 150 --out runs/ld1 \
+    --membrane DPPC DMPC POPI --solvent URE
+```
+
+Each declared residue joins that index group and is included as
+`toppar/<RESNAME>.itp`. The same is available from Python as the `extra_core` /
+`extra_membrane` / `extra_solvent` arguments to `write_index`, and `known=` to
+`write_top`. An undeclared residue still fails loudly when the files are
+written, naming the residue and the flag to use, rather than becoming a cryptic
+`grompp` rejection later.
+
 ## Python API
 
 ```python

@@ -30,8 +30,12 @@ def _build(args):
 
     gro = os.path.join(outdir, "system.gro")
     u.atoms.write(gro)
-    write_top(u, os.path.join(outdir, "topol.top"))
-    counts = write_index(u, os.path.join(outdir, "index.ndx"))
+    declared = args.membrane + args.solvent + args.core
+    write_top(u, os.path.join(outdir, "topol.top"), known=declared)
+    counts = write_index(u, os.path.join(outdir, "index.ndx"),
+                         extra_membrane=args.membrane,
+                         extra_solvent=args.solvent,
+                         extra_core=args.core)
     # the restraints in every stage reference the structure as built
     shutil.copy(gro, os.path.join(outdir, "ref.gro"))
     equil.stage_mdps(outdir)
@@ -79,6 +83,14 @@ def main(argv=None):
                    help="target minimum inter-molecular contact, A")
     b.add_argument("--no-relax", action="store_true", help="skip clash relaxation")
     b.add_argument("--seed", type=int, default=0, help="RNG seed")
+    b.add_argument("--membrane", nargs="+", default=[], metavar="RESNAME",
+                   help="extra residues to treat as membrane lipids, e.g. "
+                        "--membrane DPPC DMPC. Each is included as "
+                        "toppar/<RESNAME>.itp and joins the MEMB group")
+    b.add_argument("--solvent", nargs="+", default=[], metavar="RESNAME",
+                   help="extra residues to treat as solvent or ions (SOLV group)")
+    b.add_argument("--core", nargs="+", default=[], metavar="RESNAME",
+                   help="extra residues to treat as core neutral lipids (SOLU group)")
     b.set_defaults(func=_build)
 
     e = sub.add_parser("equil", help="run step6.0 minimization + step6.1-6.6 equilibration")

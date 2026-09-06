@@ -35,12 +35,18 @@ def molecule_counts(universe):
 
 
 def write_top(universe, path, includes=None,
-              system_name="Lipid droplet (bilayer + TRIO core)"):
-    """Write a ``.top`` with force-field includes and the ``[ molecules ]`` block."""
+              system_name="Lipid droplet (bilayer + TRIO core)", known=()):
+    """Write a ``.top`` with force-field includes and the ``[ molecules ]`` block.
+
+    ``known`` names extra residues to accept beyond :data:`ITP_ORDER`; each is
+    included as ``toppar/<RESNAME>.itp`` after the built-in ones, so a lipid the
+    package has never heard of needs no edit to this file.
+    """
     if includes is None:
         resnames = set(universe.residues.resnames)
-        present = [r for r in ITP_ORDER if r in resnames]
-        unknown = resnames - set(ITP_ORDER)
+        order = list(ITP_ORDER) + [r for r in known if r not in ITP_ORDER]
+        present = [r for r in order if r in resnames]
+        unknown = resnames - set(order)
         if unknown:
             warnings.warn(
                 f"no #include guessed for {sorted(unknown)} -- add them to the "
@@ -57,28 +63,33 @@ def write_top(universe, path, includes=None,
     return path
 
 
-def write_index(structure, path):
+def write_index(structure, path, extra_core=(), extra_membrane=(), extra_solvent=()):
     """Write the ``index.ndx`` groups the CHARMM-GUI protocol expects.
 
     For a droplet the thermostat groups map onto the layers: ``SOLU`` is the
     TRIO core, ``MEMB`` the phospholipids plus any surface CHYO, ``SOLV`` the
     water and ions.  That keeps all three non-empty without a protein in the
     system.  Raises if any residue would be left out of all three.
+
+    The ``extra_*`` arguments add residues to a group for this call only, so an
+    unrecognised lipid can be placed from the command line rather than by
+    editing the lists above.
     """
     u = structure if isinstance(structure, mda.Universe) else mda.Universe(structure)
     present = set(u.residues.resnames)
-    core = [r for r in CORE if r in present]
-    memb = [r for r in MEMBRANE if r in present]
-    solv = [r for r in SOLVENT if r in present]
+    core = [r for r in list(CORE) + list(extra_core) if r in present]
+    memb = [r for r in list(MEMBRANE) + list(extra_membrane) if r in present]
+    solv = [r for r in list(SOLVENT) + list(extra_solvent) if r in present]
 
     # every atom must land in exactly one thermostat group, or grompp rejects
     # the run with "atom ... does not belong to any T-coupling group"
     unassigned = present - set(core) - set(memb) - set(solv)
     if unassigned:
         raise ValueError(
-            f"residues {sorted(unassigned)} fall into no index group -- add them "
-            f"to CORE, MEMBRANE or SOLVENT in ld_lite/gmx.py, otherwise grompp "
-            f"will reject the system for having atoms outside tc_grps")
+            f"residues {sorted(unassigned)} fall into no index group -- declare "
+            f"them with --membrane/--solvent/--core (or the extra_* arguments), "
+            f"otherwise grompp will reject the system for having atoms outside "
+            f"tc_grps")
 
     def sel(names):
         return "resname " + " ".join(names) if names else "resid -1"

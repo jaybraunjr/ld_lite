@@ -194,6 +194,39 @@ def test_residue_in_no_index_group_is_rejected(tmp_path):
         write_index(u, tmp_path / "index.ndx")
 
 
+def test_unknown_lipid_can_be_declared_as_membrane(tmp_path):
+    """A lipid the package has never heard of must be usable without a source edit."""
+    u = synthetic_bilayer(n_side=2, n_water=2)
+    u.residues[0].resname = "DPPC"
+
+    counts = write_index(u, tmp_path / "index.ndx", extra_membrane=["DPPC"])
+    assert counts["MEMB"] == len(u.select_atoms("resname POPC DPPC"))
+    assert counts["SOLU"] + counts["MEMB"] + counts["SOLV"] == counts["SYSTEM"]
+
+    write_top(u, tmp_path / "topol.top", known=["DPPC"])
+    text = (tmp_path / "topol.top").read_text()
+    assert '#include "toppar/DPPC.itp"' in text
+    assert re.search(r"^DPPC\s+1$", text, re.M)
+
+
+def test_declared_residue_can_go_to_solvent_or_core(tmp_path):
+    u = synthetic_bilayer(n_side=2, n_water=3)
+    u.residues[-1].resname = "URE"                      # a cosolvent, say
+
+    counts = write_index(u, tmp_path / "index.ndx", extra_solvent=["URE"])
+    assert counts["SOLV"] == len(u.select_atoms("resname TIP3 URE"))
+    # the same residue routed to the core instead lands in SOLU, not SOLV
+    counts = write_index(u, tmp_path / "index.ndx", extra_core=["URE"])
+    assert counts["SOLU"] == len(u.select_atoms("resname URE"))
+
+
+def test_undeclared_lipid_error_names_the_flags(tmp_path):
+    u = synthetic_bilayer(n_side=2, n_water=2)
+    u.residues[0].resname = "DPPC"
+    with pytest.raises(ValueError, match="--membrane"):
+        write_index(u, tmp_path / "index.ndx")
+
+
 def test_mdps_are_packaged(tmp_path):
     equil.stage_mdps(tmp_path)
     staged = sorted(p.name for p in tmp_path.iterdir())
