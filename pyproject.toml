@@ -32,7 +32,7 @@ ld_lite = "ld_lite.__main__:main"
 packages = ["ld_lite"]
 
 [tool.setuptools.package-data]
-ld_lite = ["data/*.gro", "mdp/*.mdp"]
+ld_lite = ["data/*.gro", "mdp/*.mdp", "scripts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

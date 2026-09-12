@@ -1,6 +1,7 @@
 """Fast tests on a synthetic bilayer -- no large files and no GROMACS needed."""
 
 import re
+import subprocess
 
 import numpy as np
 import MDAnalysis as mda
@@ -246,3 +247,33 @@ def test_equil_requires_toppar(ld, tmp_path):
     write_index(ld, tmp_path / "index.ndx")
     with pytest.raises(FileNotFoundError, match="toppar"):
         equil.run(str(tmp_path))
+
+
+def test_cluster_scripts_are_staged(tmp_path):
+    """The run directory must be runnable with GROMACS alone, no Python."""
+    equil.stage_scripts(tmp_path)
+    for name in equil.SCRIPTS:
+        assert (tmp_path / name).exists()
+
+    sh = (tmp_path / "run_equil.sh").read_text()
+    # the full protocol, driven from bash
+    assert "step6.0_minimization.mdp" in sh
+    # the six equilibration stages are looped, so the name is built from $i
+    assert 'step6.${i}_equilibration.mdp' in sh
+    assert "for i in 1 2 3 4 5 6" in sh
+    assert "step7_production.mdp" in sh
+    # resumability is the point on a wall-clocked queue
+    assert "-cpi" in sh and "-maxh" in sh
+    assert "already complete, skipping" in sh
+    # must not depend on Python or ld_lite being present on the cluster
+    code = [ln.strip() for ln in sh.splitlines() if not ln.strip().startswith("#")]
+    assert not any("python" in ln for ln in code)      # no interpreter needed
+    assert not any("-m ld_lite" in ln for ln in code)   # not a wrapper round the CLI
+
+
+def test_cluster_script_is_valid_bash(tmp_path):
+    equil.stage_scripts(tmp_path)
+    for name in equil.SCRIPTS:
+        r = subprocess.run(["bash", "-n", str(tmp_path / name)],
+                           capture_output=True, text=True)
+        assert r.returncode == 0, f"{name}: {r.stderr}"

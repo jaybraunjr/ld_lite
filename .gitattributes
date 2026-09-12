@@ -1,0 +1,11 @@
+# The cluster scripts must keep LF endings wherever they are checked out.
+# With core.autocrlf=true (the Windows default) a checkout would rewrite them
+# to CRLF, and bash on Linux then fails with
+#   /bin/bash^M: bad interpreter: No such file or directory
+# GROMACS .mdp files are pinned for the same reason.
+*.sh     text eol=lf
+*.slurm  text eol=lf
+*.mdp    text eol=lf
+
+# coordinate/template data: leave bytes alone
+*.gro    -text

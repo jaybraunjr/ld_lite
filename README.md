@@ -59,6 +59,7 @@ python -m ld_lite equil runs/ld1 --nsteps 50 --ntomp 8
 | `topol.top` | `#include`s plus `[ molecules ]` counted in file order |
 | `index.ndx` | `SOLU` (core) / `MEMB` (phospholipids + CHYO) / `SOLV` (water + ions) |
 | `step6.*.mdp`, `step7_production.mdp` | the CHARMM-GUI protocol |
+| `run_equil.sh`, `run_equil.slurm` | the same protocol in plain bash, for clusters |
 | `toppar/` | if you passed `--toppar` |
 
 `equil` then runs `step6.0` energy minimization followed by `step6.1`–`step6.6`,
@@ -67,6 +68,55 @@ goes 1 → 2 fs and the barostat switches on. Add `--production` to continue int
 unrestrained NPT (`step7`). Output is `em.gro`, `eq1.gro` … `eq6.gro`, `npt.gro`.
 
 On a GPU node this is hours of wall time; `--ntomp N` sets the thread count.
+
+## Running on a cluster (SLURM)
+
+The Python `equil` command is a convenience for a local machine. For real runs
+`build` also stages **`run_equil.sh`**, which does the identical protocol in
+plain bash and needs *nothing but GROMACS* — no Python, no `ld_lite` install on
+the cluster. Build locally, copy the directory over, submit:
+
+```bash
+rsync -a runs/ld1/ cluster:~/ld1/
+ssh cluster
+cd ~/ld1
+sbatch run_equil.slurm          # or: bash run_equil.sh --production
+```
+
+`run_equil.slurm` is a **template** — the `--account`, `--partition` and
+`--gres` lines are marked `FIXME` and must match your allocation. It sets the
+knobs below and then calls `run_equil.sh`.
+
+| variable | |
+|---|---|
+| `GMX` | GROMACS executable (default `gmx`) |
+| `NT` | OpenMP threads (default `$SLURM_CPUS_PER_TASK`, else 8) |
+| `MAXH` | stop cleanly after N hours and checkpoint — set just under `--time` |
+| `MDRUN_OPTS` | extra mdrun flags, e.g. `-nb gpu -pme gpu` |
+| `NSTEPS` | cap every stage, for a quick smoke test |
+
+### It survives the wall clock
+
+This is the part that matters on a queue. Every stage is **skipped if its
+`.gro` already exists** and **resumed from its checkpoint if it was cut off**,
+so a job that runs out of time is just resubmitted — nothing is recomputed:
+
+```
+$ sbatch run_equil.slurm          # hits --time during production
+[ld_lite] npt: stopped before finishing (wall clock?).
+[ld_lite] Resubmit this script to continue from npt.cpt.
+
+$ sbatch run_equil.slurm          # picks up exactly where it stopped
+[ld_lite] em:  already complete, skipping
+[ld_lite] eq1: already complete, skipping
+...
+[ld_lite] npt: resuming from checkpoint
+```
+
+`MAXH` is what makes this work: mdrun stops itself and writes a checkpoint
+*before* SLURM kills the job. Without it a hard kill can lose the whole stage.
+The script exits 0 on a wall-clock stop (so the job counts as successful) but
+propagates a real GROMACS failure as a non-zero exit.
 
 ## Cholesteryl ester in the leaflets
 
@@ -156,6 +206,15 @@ right fraction depends on how much floor area the box gives each molecule. The
 table above comes from a roomy 118 × 118 Å box; packing the same 100 TRIO into
 a 90 × 90 Å one, the default 0.25 gives only 0.44 Å and 0.15 is needed to reach
 1.55 Å. A tighter box wants a lower fraction.
+
+This is not a cosmetic number. A 60-TRIO build that came out at **0.46 Å**
+minimized fine and cleared `step6.1`–`step6.3`, then died with LINCS constraint
+errors at **`step6.4`** — the first stage at a 2 fs timestep — and did so
+whether the stages were 25 steps or 200. Rebuilding the same system at
+`--packing-fraction 0.15` gave **1.60 Å** and ran the whole protocol through
+`step7` without a single warning. If the printed contact is much under ~1 Å,
+lower the fraction and rebuild; the failure will otherwise surface several
+stages later, long after minimization has convinced you it was fine.
 
 ## Limitations
 

@@ -12,16 +12,37 @@ import shutil
 import subprocess
 
 MDP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mdp")
+SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts")
 
 MINIMIZATION = "step6.0_minimization.mdp"
 EQUILIBRATION = [f"step6.{i}_equilibration.mdp" for i in range(1, 7)]
 PRODUCTION = "step7_production.mdp"
+
+#: plain-bash drivers staged alongside the .mdp files, so the run directory
+#: can be copied to a cluster and run with GROMACS alone -- no Python there
+SCRIPTS = ["run_equil.sh", "run_equil.slurm"]
 
 
 def stage_mdps(outdir):
     """Copy the packaged .mdp files into a run directory."""
     for name in [MINIMIZATION] + EQUILIBRATION + [PRODUCTION]:
         shutil.copy(os.path.join(MDP_DIR, name), os.path.join(outdir, name))
+
+
+def stage_scripts(outdir):
+    """Copy the bash / SLURM drivers into a run directory.
+
+    These do the same protocol as :func:`run` but need nothing except GROMACS,
+    so the directory can be rsynced to a cluster and submitted there.  They are
+    marked executable where the filesystem supports it.
+    """
+    for name in SCRIPTS:
+        dest = os.path.join(outdir, name)
+        shutil.copy(os.path.join(SCRIPTS_DIR, name), dest)
+        try:
+            os.chmod(dest, os.stat(dest).st_mode | 0o111)
+        except OSError:
+            pass
 
 
 def find_gmx():

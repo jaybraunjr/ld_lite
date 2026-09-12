@@ -39,6 +39,7 @@ def _build(args):
     # the restraints in every stage reference the structure as built
     shutil.copy(gro, os.path.join(outdir, "ref.gro"))
     equil.stage_mdps(outdir)
+    equil.stage_scripts(outdir)
 
     if args.toppar:
         dest = os.path.join(outdir, "toppar")
@@ -53,6 +54,7 @@ def _build(args):
     if not args.toppar:
         print(f"[ld_lite] note: copy your CHARMM36 toppar/ into {outdir} before running gmx")
     print(f"[ld_lite] next: python -m ld_lite equil {outdir}")
+    print(f"[ld_lite]       or on a cluster: cd {outdir} && bash run_equil.sh")
 
 
 def _equil(args):
