@@ -118,6 +118,39 @@ $ sbatch run_equil.slurm          # picks up exactly where it stopped
 The script exits 0 on a wall-clock stop (so the job counts as successful) but
 propagates a real GROMACS failure as a non-zero exit.
 
+## Running GROMACS by hand
+
+Everything GROMACS needs is in the run directory, so you can skip both `equil`
+and the script and drive `gmx` yourself. These are exactly the commands they
+run:
+
+```bash
+cd runs/ld1
+
+# step6.0 -- energy minimization
+gmx grompp -f step6.0_minimization.mdp -c system.gro -r ref.gro -p topol.top -n index.ndx -o em.tpr -maxwarn 5
+gmx mdrun -deffnm em
+
+# step6.1 -- first equilibration; generates its own velocities, so no -t
+gmx grompp -f step6.1_equilibration.mdp -c em.gro -r ref.gro -p topol.top -n index.ndx -o eq1.tpr -maxwarn 5
+gmx mdrun -deffnm eq1
+
+# step6.2 .. step6.6 -- each continues from the previous stage's .gro and .cpt
+gmx grompp -f step6.2_equilibration.mdp -c eq1.gro -t eq1.cpt -r ref.gro -p topol.top -n index.ndx -o eq2.tpr -maxwarn 5
+gmx mdrun -deffnm eq2
+# ...repeat for eq3 .. eq6, bumping the numbers each time
+
+# step7 -- unrestrained NPT production
+gmx grompp -f step7_production.mdp -c eq6.gro -t eq6.cpt -r ref.gro -p topol.top -n index.ndx -o npt.tpr -maxwarn 5
+gmx mdrun -deffnm npt
+```
+
+`-r ref.gro` is required at every stage: the position restraints are defined
+relative to the structure as built. Add `-ntomp N` (threads) or
+`-nb gpu -pme gpu` (GPU offload) to any `mdrun` as your machine allows. If
+`gmx` is not found, source GROMACS first
+(e.g. `source /usr/local/gromacs/bin/GMXRC`).
+
 ## Cholesteryl ester in the leaflets
 
 A bilayer that already contains **CHYO** carries straight through. Build the
